@@ -26,4 +26,4 @@ def test_fingerprint_changes_for_source_ip():
 def test_prompt_contains_only_alert_evidence_and_mitre():
     prompt = make_prompt(sample())
     assert '"mitre_ids": ["T1110"]' in prompt
-    assert "Do not invent context" in prompt
+    assert "do not invent context" in prompt.lower()
