@@ -94,7 +94,7 @@ Urmează ghidul [WAZUH-CISCO-ASA.md](WAZUH-CISCO-ASA.md) pentru Wazuh all-in-one
 
 ## 9. Notificări Teams (opțional)
 
-Urmează [TEAMS-NOTIFICATIONS.md](TEAMS-NOTIFICATIONS.md) pentru a crea un Workflow în Teams, a configura webhook-ul în `.env` și a testa notificarea.
+Urmează [TEAMS-NOTIFICATIONS.md](TEAMS-NOTIFICATIONS.md) pentru configurarea opțională Teams, ntfy sau e-mail (SMTP) și testarea notificărilor.
 
 ## 10. Operare, update, backup și restaurare
 

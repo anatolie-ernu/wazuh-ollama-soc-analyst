@@ -1,7 +1,6 @@
 import json
 import os
 from datetime import datetime, timedelta, timezone
-from urllib.parse import quote_plus
 
 import pymysql
 from pymysql.cursors import DictCursor
@@ -40,9 +39,10 @@ def init_db():
                 INDEX idx_cases_status (status),
                 INDEX idx_cases_fingerprint_recent (fingerprint, last_seen)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci""")
-            cur.execute("""CREATE TABLE IF NOT EXISTS teams_outbox (
+            cur.execute("""CREATE TABLE IF NOT EXISTS notification_outbox (
                 id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
                 case_id BIGINT UNSIGNED NOT NULL,
+                channel VARCHAR(16) NOT NULL,
                 payload_json LONGTEXT NOT NULL,
                 status VARCHAR(16) NOT NULL DEFAULT 'pending',
                 attempts INT UNSIGNED NOT NULL DEFAULT 0,
@@ -51,8 +51,9 @@ def init_db():
                 sent_at DATETIME(6) NULL,
                 last_error VARCHAR(128) NULL,
                 created_at DATETIME(6) NOT NULL,
-                INDEX idx_teams_outbox_pending (status, next_attempt_at, id),
-                INDEX idx_teams_outbox_locked (status, locked_at)
+                UNIQUE KEY uq_notification_case_channel (case_id, channel),
+                INDEX idx_notification_pending (status, next_attempt_at, id),
+                INDEX idx_notification_locked (status, locked_at)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci""")
 
 
@@ -76,22 +77,24 @@ def upsert_case(alert: dict, fp: str, ai: dict, score: int, window_seconds: int)
     return case_id, created
 
 
-def enqueue_teams_notification(case_id: int, payload: dict) -> int:
+def enqueue_notification(case_id: int, channel: str, payload: dict) -> int:
+    if channel not in ("teams", "ntfy", "email"):
+        raise ValueError("unsupported notification channel")
     now = datetime.now(timezone.utc).replace(tzinfo=None)
     with connect() as db:
         with db.cursor() as cur:
-            cur.execute("INSERT INTO teams_outbox(case_id,payload_json,next_attempt_at,created_at) VALUES(%s,%s,%s,%s)",
-                        (case_id, json.dumps(payload, ensure_ascii=False), now, now))
+            cur.execute("INSERT INTO notification_outbox(case_id,channel,payload_json,next_attempt_at,created_at) VALUES(%s,%s,%s,%s,%s)",
+                        (case_id, channel, json.dumps(payload, ensure_ascii=False), now, now))
             notification_id = cur.lastrowid
         db.commit()
     return notification_id
 
 
-def claim_teams_notification():
+def claim_notification():
     now = datetime.now(timezone.utc).replace(tzinfo=None)
     with connect() as db:
         with db.cursor() as cur:
-            cur.execute("""SELECT id,case_id,payload_json,attempts FROM teams_outbox
+            cur.execute("""SELECT id,case_id,channel,payload_json,attempts FROM notification_outbox
                 WHERE (status='pending' AND next_attempt_at<=%s)
                    OR (status='processing' AND locked_at < %s - INTERVAL 5 MINUTE)
                 ORDER BY id LIMIT 1 FOR UPDATE""", (now, now))
@@ -99,23 +102,23 @@ def claim_teams_notification():
             if not row:
                 db.commit()
                 return None
-            cur.execute("UPDATE teams_outbox SET status='processing',locked_at=%s WHERE id=%s", (now, row["id"]))
+            cur.execute("UPDATE notification_outbox SET status='processing',locked_at=%s WHERE id=%s", (now, row["id"]))
         db.commit()
     result = dict(row)
     result["payload"] = json.loads(result.pop("payload_json"))
     return result
 
 
-def mark_teams_notification_sent(notification_id: int) -> None:
+def mark_notification_sent(notification_id: int) -> None:
     now = datetime.now(timezone.utc).replace(tzinfo=None)
     with connect() as db:
         with db.cursor() as cur:
-            cur.execute("UPDATE teams_outbox SET status='sent',sent_at=%s,locked_at=NULL,last_error=NULL WHERE id=%s",
+            cur.execute("UPDATE notification_outbox SET status='sent',sent_at=%s,locked_at=NULL,last_error=NULL WHERE id=%s",
                         (now, notification_id))
         db.commit()
 
 
-def retry_teams_notification(notification_id: int, attempts: int, error_type: str) -> None:
+def retry_notification(notification_id: int, attempts: int, error_type: str) -> None:
     now = datetime.now(timezone.utc).replace(tzinfo=None)
     attempt_count = attempts + 1
     if attempt_count >= 12:
@@ -124,7 +127,7 @@ def retry_teams_notification(notification_id: int, attempts: int, error_type: st
         status, delay = "pending", min(3600, 10 * (2 ** min(attempt_count - 1, 8)))
     with connect() as db:
         with db.cursor() as cur:
-            cur.execute("""UPDATE teams_outbox SET status=%s,attempts=%s,next_attempt_at=%s,
+            cur.execute("""UPDATE notification_outbox SET status=%s,attempts=%s,next_attempt_at=%s,
                 locked_at=NULL,last_error=%s WHERE id=%s""",
                 (status, attempt_count, now + timedelta(seconds=delay), error_type[:128], notification_id))
         db.commit()

@@ -8,8 +8,8 @@ from fastapi import FastAPI, Header, HTTPException, Request
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from app.analyzer import analyze, fingerprint, mitre_tags, risk_score
-from app.notifications import TEAMS_MIN_RISK_SCORE, build_teams_card, teams_enabled, teams_outbox_worker
-from app.store import enqueue_teams_notification, get_case, init_db, list_cases, update_case, upsert_case
+from app.notifications import NOTIFICATION_MIN_RISK_SCORE, build_teams_card, build_text_notification, configured_channels, notification_outbox_worker
+from app.store import enqueue_notification, get_case, init_db, list_cases, update_case, upsert_case
 
 API_KEY = os.getenv("INGEST_API_KEY", "")
 WINDOW = int(os.getenv("CORRELATION_WINDOW_SECONDS", "300"))
@@ -19,7 +19,8 @@ logger = logging.getLogger(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
-    worker = asyncio.create_task(teams_outbox_worker()) if teams_enabled() else None
+    channels = configured_channels()
+    worker = asyncio.create_task(notification_outbox_worker()) if channels else None
     try:
         yield
     finally:
@@ -54,16 +55,19 @@ async def ingest(request: Request, x_api_key: str | None = Header(default=None))
     ai = await analyze(alert)
     score = risk_score(alert)
     case_id, created = upsert_case(alert, fingerprint(alert), ai, score, WINDOW)
-    notification_queued = False
-    if created and teams_enabled() and score >= TEAMS_MIN_RISK_SCORE:
-        try:
-            payload = build_teams_card(case_id, alert, ai, score)
-            enqueue_teams_notification(case_id, payload)
-            notification_queued = True
-        except Exception as exc:
-            logger.warning("Could not queue Teams notification (%s)", type(exc).__name__)
+    queued_channels = []
+    channels = configured_channels()
+    if created and score >= NOTIFICATION_MIN_RISK_SCORE:
+        for channel in channels:
+            try:
+                payload = build_teams_card(case_id, alert, ai, score) if channel == "teams" else build_text_notification(case_id, alert, ai, score)
+                enqueue_notification(case_id, channel, payload)
+                queued_channels.append(channel)
+            except Exception as exc:
+                logger.warning("Could not queue %s notification (%s)", channel, type(exc).__name__)
+
     return {"accepted": True, "case_id": case_id, "risk_score": score,
-            "teams_notification_queued": notification_queued}
+            "notification_queued": queued_channels}
 
 @app.get("/api/v1/cases")
 async def cases():

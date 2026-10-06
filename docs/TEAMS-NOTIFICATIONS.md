@@ -1,55 +1,76 @@
-# Notificări Microsoft Teams
+# Notificări Teams, ntfy și e-mail
 
-Sentinel poate trimite o notificare în Teams după ce primește o alertă Wazuh care deschide un caz nou și trece pragul de risc configurat. Notificarea conține un Adaptive Card cu regula, agentul, IP-ul sursă, scorul, severitatea, analiza succintă și ID-urile MITRE disponibile. Nu trimite alerta JSON completă.
+Sentinel poate trimite notificări opționale când o alertă Wazuh deschide un caz nou și trece pragul de risc. Canalele Teams, ntfy și e-mail sunt independente și pot fi activate simultan. Mesajele conțin doar câmpurile selectate (regulă, agent, IP sursă, scor, severitate, rezumat AI și MITRE), niciodată JSON-ul complet al alertei.
 
-Notificările sunt opționale. Fără webhook configurat, ingestia și dashboard-ul funcționează normal. Cazurile corelate în fereastra curentă nu generează notificări repetate.
+Fără configurare, notificările rămân dezactivate. Alertele corelate în fereastra unui caz nu trimit mesaje repetate. Pragul comun se setează cu `NOTIFICATION_MIN_RISK_SCORE` (0–100, implicit 70).
 
-## 1. Creează webhook-ul în Teams
+## Configurare ntfy
 
-1. Deschide canalul Teams unde vrei notificările și selectează meniul canalului → Workflows.
-2. Creează workflow-ul cu trigger-ul When a Teams webhook request is received și acțiunea de postare Adaptive Card în canalul dorit.
-3. Pentru apelul direct din Sentinel, configurează trigger-ul să accepte cereri externe prin URL-ul său unic; URL-ul devine secretul webhook-ului.
-4. Salvează workflow-ul și copiază URL-ul. Tratează-l ca pe o parolă: cine îl deține poate declanșa workflow-ul. Adaugă un co-owner pentru continuitate dacă proprietarul inițial își pierde accesul.
+În `.env`, setează:
 
-Microsoft recomandă [Workflows pentru webhook-uri noi](https://learn.microsoft.com/microsoftteams/platform/webhooks-and-connectors/how-to/add-incoming-webhook); conectoarele Microsoft 365 vechi sunt în curs de retragere. Trigger-ul acceptă POST-uri HTTP și poate porni un flow care publică Adaptive Cards în Teams.
+```env
+NTFY_SERVER_URL=https://ntfy.sh
+NTFY_TOPIC=un-topic-lung-aleatoriu
+NTFY_TOKEN=tk_tokenul_tau
+```
 
-## 2. Configurează Sentinel
+`NTFY_TOKEN` este opțional pentru instalări ntfy publice; pentru un server privat, folosește tokenul emis de server. Aplicația permite doar URL-uri HTTPS. Abonează aplicația ntfy mobilă la același server și topic. Nu reutiliza topicuri ușor de ghicit: la `ntfy.sh`, topicul funcționează ca un secret de acces, iar mesajele sunt trimise către un serviciu găzduit în afara SOC-ului. Pentru alerte reale recomandăm un server ntfy privat, autentificat. Mesajele sunt sumarizate; nu includ loguri brute sau tokenuri.
 
-Pe server, editează /opt/sentinel-l1/.env:
+## Configurare e-mail (SMTP)
 
-    TEAMS_WEBHOOK_URL=https://URL-UL-SECRET-COPIAT-DIN-WORKFLOWS
-    TEAMS_MIN_RISK_SCORE=70
+```env
+SMTP_HOST=smtp.example.net
+SMTP_PORT=587
+SMTP_USER=sentinel@example.net
+SMTP_PASSWORD=parola-sau-app-password
+SMTP_FROM=sentinel@example.net
+SMTP_TO=soc@example.net,analist@example.net
+```
 
-Pragul acceptă valori între 0 și 100. Implicit, sunt notificate doar cazurile noi cu risc de cel puțin 70.
+Portul 587 folosește STARTTLS; portul 465 folosește TLS implicit. Pentru relay intern fără autentificare, lasă `SMTP_USER` și `SMTP_PASSWORD` goale. Dacă `SMTP_HOST` este setat, `SMTP_FROM` și cel puțin o adresă `SMTP_TO` sunt obligatorii; utilizatorul și parola se setează împreună. Aplicația verifică TLS cu certificatul serverului SMTP.
 
-Protejează secretul și repornește API-ul:
+## Configurare Microsoft Teams
 
-    sudo chmod 0600 /opt/sentinel-l1/.env
-    cd /opt/sentinel-l1
-    sudo docker compose up -d --force-recreate api
-    sudo docker compose logs --since=5m api
+1. În canalul Teams, deschide meniul canalului → **Workflows**.
+2. Creează un workflow cu trigger-ul webhook Teams și acțiunea care postează un Adaptive Card în canal.
+3. Salvează workflow-ul și copiază URL-ul secret în `.env`:
 
-## 3. Testează
+```env
+TEAMS_WEBHOOK_URL=https://URL-UL-SECRET-DIN-WORKFLOWS
+```
 
-Trimite exemplul de ingestie din README cu un nivel și grupuri de regulă care produc un scor peste prag. Răspunsul API indică teams_notification_queued=true. Apoi verifică apariția cardului în canal.
+Tratează URL-ul ca pe o parolă și adaugă un co-owner pentru continuitate.
 
-Dacă webhook-ul nu este disponibil temporar, Sentinel păstrează notificarea într-un outbox MariaDB și reîncearcă cu întârziere exponențială. După 12 încercări eșuate, notificarea primește status failed.
+## Aplică setările și verifică
 
-    SELECT id, case_id, status, attempts, last_error, created_at
-    FROM teams_outbox
-    ORDER BY id DESC
-    LIMIT 20;
+Salvează secretele în `.env` (nu în Git), apoi:
 
-Pentru a reîncerca manual notificările eșuate după remedierea webhook-ului:
+```bash
+sudo chmod 0600 /opt/sentinel-l1/.env
+cd /opt/sentinel-l1
+sudo docker compose up -d --force-recreate api
+sudo docker compose logs --since=5m api
+```
 
-    UPDATE teams_outbox
-    SET status='pending', attempts=0, next_attempt_at=UTC_TIMESTAMP(6), locked_at=NULL, last_error=NULL
-    WHERE status='failed';
+Trimite o alertă Wazuh care trece pragul configurat. Răspunsul API va conține, de exemplu, `"notification_queued":["ntfy","email"]`. Coadă MariaDB persistentă reîncearcă livrarea cu backoff exponențial și marchează `failed` după 12 eșecuri.
 
-## Date și limitări
+```sql
+SELECT id, case_id, channel, status, attempts, last_error, created_at
+FROM notification_outbox ORDER BY id DESC LIMIT 20;
+```
 
-- Sunt notificate cazurile noi care trec pragul; alertele corelate în același caz nu creează mesaje repetate.
-- Dacă schimbi URL-ul webhook-ului, actualizează .env și recreează serviciul API.
-- Rețeaua Docker trebuie să permită conexiuni HTTPS de ieșire către Microsoft Power Automate/Teams.
-- Webhook-ul este o credențială. Nu îl pune în Git, loguri sau comenzi partajate.
-- Notificarea este best-effort cu outbox și retry; dacă tenantul dezactivează workflow-ul ori schimbă permisiunile, mesajele vor rămâne în coadă și vor apărea în failed după limita de încercări.
+După remedierea canalului, notificările eșuate pot fi reintroduse în coadă:
+
+```sql
+UPDATE notification_outbox
+SET status='pending', attempts=0, next_attempt_at=UTC_TIMESTAMP(6), locked_at=NULL, last_error=NULL
+WHERE status='failed';
+```
+
+## Limitări și siguranță
+
+- Canalele se activează numai când au configurarea minimă; o configurare parțială/invalidă oprește pornirea API-ului pentru a evita o stare ambiguă.
+- Pentru ntfy și SMTP permite egress HTTPS/TLS din containerul API către serverele configurate.
+- Protejează `.env` și credentialele webhook/SMTP/ntfy; rotește-le dacă au fost expuse.
+- Livrarea este at-least-once: dacă un serviciu acceptă mesajul, dar API-ul se oprește înainte să confirme în MariaDB, poate apărea un duplicat după retry.
+- Mesajul e-mail și ntfy nu conțin logul original, dar rezumatul de analiză și IP-ul sursă pot totuși fi sensibile. Pentru ntfy.sh folosește un topic aleator și evaluează transferul de date în afara organizației.

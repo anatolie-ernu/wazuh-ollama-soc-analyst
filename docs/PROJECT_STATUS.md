@@ -6,7 +6,7 @@
 
 ## Implemented in the proposal
 
-FastAPI ingest and cases API, MariaDB storage, provider-selectable Ollama/OpenAI/Anthropic/Google triage, heuristic risk score, MITRE ID display when present in Wazuh payload, single-page dashboard, Debian 13 app installer, Wazuh all-in-one assistant wrapper, restricted ASA syslog receiver setup, Wazuh custom integration to Sentinel, optional Microsoft Teams Workflow notifications with MariaDB outbox/retries, MariaDB backup/restore helpers, documentation and CI workflow.
+FastAPI ingest and cases API, MariaDB storage, provider-selectable Ollama/OpenAI/Anthropic/Google triage, heuristic risk score, MITRE ID display when present in Wazuh payload, single-page dashboard, Debian 13 app installer, Wazuh all-in-one assistant wrapper, restricted ASA syslog receiver setup, Wazuh custom integration to Sentinel, optional Teams, ntfy and SMTP notifications with MariaDB outbox/retries, MariaDB backup/restore helpers, documentation and CI workflow.
 
 ## Validation state
 
