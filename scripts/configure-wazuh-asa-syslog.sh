@@ -16,6 +16,10 @@ PROTO="${WAZUH_SYSLOG_PROTOCOL:-udp}"
 [[ -f "$CONF" ]] || { echo "Nu găsesc $CONF. Instalează Wazuh Server mai întâi." >&2; exit 1; }
 [[ "$PORT" =~ ^[0-9]+$ ]] && (( PORT >= 1 && PORT <= 65535 )) || { echo "Port invalid." >&2; exit 1; }
 [[ "$PROTO" == udp || "$PROTO" == tcp ]] || { echo "Protocolul trebuie să fie udp sau tcp." >&2; exit 1; }
+if [[ "$PROTO" == tcp ]] && (( PORT < 1025 )); then
+  echo "Cisco ASA cere port TCP syslog între 1025 și 65535 (implicit 1470); 514 este portul UDP implicit." >&2
+  exit 1
+fi
 
 python3 - "$CONF" "$ASA_ALLOWED_IPS" "$LISTEN_IP" "$PORT" "$PROTO" <<'PY'
 import ipaddress, os, pathlib, re, shutil, sys, tempfile

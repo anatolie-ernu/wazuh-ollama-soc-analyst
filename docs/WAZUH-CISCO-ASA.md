@@ -50,7 +50,7 @@ sudo ASA_ALLOWED_IPS='192.0.2.20' \
   bash scripts/configure-wazuh-asa-syslog.sh
 ```
 
-Înlocuiește IP-urile cu valorile tale. `WAZUH_LISTEN_IP` este adresa locală Wazuh pe interfața de management a ASA; omite variabila dacă dorești bind pe toate interfețele, deși este preferabilă o adresă dedicată. Scriptul implicit folosește UDP/514, validează XML, păstrează backup `ossec.conf.sentinel-backup` și repornește managerul. Dacă portul ori protocolul se schimbă, configurează ASA identic. TCP poate fi ales cu `WAZUH_SYSLOG_PROTOCOL=tcp`; nu adăuga două listeners identice.
+Înlocuiește IP-urile cu valorile tale. `WAZUH_LISTEN_IP` este adresa locală Wazuh pe interfața de management a ASA; omite variabila dacă dorești bind pe toate interfețele, deși este preferabilă o adresă dedicată. Scriptul implicit folosește UDP/514, validează XML, păstrează backup `ossec.conf.sentinel-backup` și repornește managerul. Dacă portul ori protocolul se schimbă, configurează ASA identic. Pentru TCP, Cisco ASA folosește implicit portul 1470; porturile TCP personalizate trebuie să fie între 1025 și 65535. Configurează Wazuh cu `WAZUH_SYSLOG_PROTOCOL=tcp WAZUH_SYSLOG_PORT=1470` și ASA cu `logging host <INTERFAȚĂ> <IP_WAZUH> tcp/1470`. Scriptul respinge TCP/514. ASA trimite către un server pe UDP sau TCP, nu ambele simultan. TCP oferă livrare cu transport fiabil, dar unele versiuni ASA blochează sesiuni noi când serverul syslog nu este disponibil; verifică opțiunea `logging permit-hostdown` și politica locală înainte de activare.
 
 Firewall-ul de rețea trebuie să permită numai `ASA_IP -> WAZUH_IP:514/UDP`. Verifică listener-ul și logurile după test:
 
@@ -80,7 +80,7 @@ show logging
 logging test
 ```
 
-Cisco ASA poate folosi UDP sau TCP pentru un server syslog. Începe cu UDP/514 și testează livrarea înainte de a schimba protocolul. Cisco avertizează că pentru unele versiuni/condiții folosirea TCP poate opri conexiuni noi dacă syslog-ul nu este disponibil; verifică manualul exact al modelului/versiunii înainte să activezi TCP. Nu copia o comandă de `logging host` până nu ai completat interfața și IP-ul corect.
+Începe cu UDP/514 și testează livrarea înainte de a schimba protocolul. Verifică manualul exact al modelului/versiunii și nu copia o comandă de `logging host` până nu ai completat interfața și IP-ul corect.
 
 Repository-ul sursă include și reguli personalizate, verificare NetFlow și un script de conectivitate. Nu le-am copiat automat: NetFlow este alt flux decât syslog, iar regulile folosesc câmpuri/formatări care trebuie validate cu mesajele ASA reale și `/var/ossec/bin/wazuh-logtest` înainte de activare. Testul de rețea din acest proiect verifică direct listener-ul și arhivele Wazuh, fără IP-uri prestabilite.
 
