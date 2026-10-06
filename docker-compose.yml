@@ -1,0 +1,62 @@
+services:
+  api:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DB_HOST: mariadb
+      DB_PORT: 3306
+    ports:
+      - "${SENTINEL_BIND:-127.0.0.1}:8080:8080"
+    depends_on:
+      mariadb:
+        condition: service_healthy
+      ollama:
+        condition: service_healthy
+    read_only: true
+    tmpfs:
+      - /tmp:size=32m,noexec,nosuid
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    networks: [soc]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/healthz', timeout=3)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+  mariadb:
+    image: mariadb:11.4
+    restart: unless-stopped
+    environment:
+      MARIADB_DATABASE: ${DB_NAME:-sentinel}
+      MARIADB_USER: ${DB_USER:-sentinel}
+      MARIADB_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env}
+      MARIADB_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:?Set DB_ROOT_PASSWORD in .env}
+      MARIADB_ROOT_HOST: localhost
+      TZ: ${TZ:-Europe/Chisinau}
+    volumes:
+      - mariadb-data:/var/lib/mysql
+    networks: [soc]
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+  ollama:
+    image: ollama/ollama:0.6.8
+    restart: unless-stopped
+    volumes:
+      - ollama-data:/root/.ollama
+    networks: [soc]
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+volumes:
+  mariadb-data:
+  ollama-data:
+networks:
+  soc:
+    internal: true
