@@ -5,12 +5,15 @@
 - Ingestia și `PATCH` cer API key. Dashboard-ul și `GET` nu au autentificare; protejează-le prin reverse proxy cu SSO/MFA înainte de acces remote sau multi-user.
 - TLS trebuie terminat la un proxy de încredere. Nu expune `8080`, `3306` sau `11434` public. API-ul și Ollama au nevoie de egress pentru providerul AI și descărcarea modelului; restricționează egress-ul prin firewall la destinațiile necesare. Porturile DB și Ollama nu sunt publicate pe host.
 - `.env` nu se comite și trebuie protejat la nivel de OS.
+- Webhook-ul Teams, topicul/tokenul ntfy și credentialele SMTP sunt secrete; păstrează-le în `.env` cu permisiuni restrictive și rotește-le dacă sunt expuse. Folosește un server ntfy privat pentru notificări SOC sensibile.
 - Conținutul alertei poate include prompt injection; modelul local poate greși. Verifică întotdeauna dovezile în Wazuh.
 - MariaDB rulează separat în Compose, cu InnoDB, volum persistent și cont aplicație. Pentru HA/throughput ridicat: replicare MariaDB proiectată separat, migrări, queue persistentă și retenție.
 - Aplicația păstrează notă și stare în MariaDB, dar nu are identitate operator, RBAC sau audit imuabil. Protejează dump-urile DB și `.env`.
 - Fixează versiunile imaginilor, scanează imagini/dependințe și actualizează după testare.
 
 Cloud providers (OpenAI, Anthropic, Google) receive alert content for analysis when selected. Confirm privacy/data-handling approval and provider API terms before enabling them. See [AI-PROVIDERS.md](AI-PROVIDERS.md).
+
+Teams, ntfy și e-mail trimit câmpuri selectate și rezumatul AI, nu JSON-ul complet al alertei. Vezi [ghidul notificărilor](TEAMS-NOTIFICATIONS.md).
 
 ## API
 

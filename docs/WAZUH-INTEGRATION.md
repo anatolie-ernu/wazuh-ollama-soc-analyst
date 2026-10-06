@@ -2,24 +2,24 @@
 
 API-ul acceptă un obiect JSON cu structură de alertă Wazuh la `POST /api/v1/alerts`, autentificat prin header `X-API-Key`. Exemplu complet de trimitere este în README.
 
-## Model recomandat
+## Traseul complet
 
-Folosește un forwarder dedicat lângă managerul Wazuh. Forwarderul citește alerta JSON și o trimite prin HTTPS către Sentinel cu certificat verificat, retry limitat și timeout. Nu loga secretul. Restricționează traficul prin firewall la destinația Sentinel.
+Cisco ASA trimite syslog către listener-ul managerului Wazuh; Wazuh aplică decoder-ele/regulile și apoi poate invoca integrarea custom `custom-sentinel` pentru alertele JSON. Ghidul complet este [WAZUH-CISCO-ASA.md](WAZUH-CISCO-ASA.md).
 
-Wazuh are integrări active configurabile în `ossec.conf`; sintaxa și apelarea scripturilor trebuie verificate pentru versiunea instalată. Acest repo nu modifică automat configurația unui manager existent și nu instalează script cu privilegii pe manager.
+Instalatoarele fac backup la `ossec.conf`, validează XML-ul înainte de scriere, apoi repornesc `wazuh-manager`. Scriptul custom trimite webhook-ul cu timeout și permite HTTP numai către loopback. Cheia API este păstrată în configurația managerului cu acces privilegiat; protejează și arhivează aceste fișiere corespunzător.
 
-Fragment orientativ, de adaptat după documentația versiunii tale:
+Fragmentul creat de instalator pe același host:
 
 ```xml
 <integration>
   <name>custom-sentinel</name>
-  <hook_url>https://sentinel.soc.example/api/v1/alerts</hook_url>
+  <hook_url>http://127.0.0.1:8080/api/v1/alerts</hook_url>
   <api_key>REPLACE_WITH_SECRET</api_key>
   <alert_format>json</alert_format>
 </integration>
 ```
 
-Secretul din exemplu este placeholder. Păstrează secretul real separat, protejat de permisiuni restrictive. Înainte de producție testează payload, TLS, retry și volume pe un sistem pilot.
+Schimbă endpointul dacă Sentinel rulează pe alt host (HTTPS cu certificat valid). Pragul implicit este nivel Wazuh 5; fără filtru `group`/`rule_id`, sunt trimise alertele tuturor surselor peste prag.
 
 ## Validare
 

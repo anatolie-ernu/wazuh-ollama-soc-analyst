@@ -1,21 +1,35 @@
 import hmac
 import json
+import logging
 import os
+import asyncio
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Header, HTTPException, Request
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from app.analyzer import analyze, fingerprint, mitre_tags, risk_score
-from app.store import get_case, init_db, list_cases, update_case, upsert_case
+from app.notifications import NOTIFICATION_MIN_RISK_SCORE, build_teams_card, build_text_notification, configured_channels, notification_outbox_worker
+from app.store import enqueue_notification, get_case, init_db, list_cases, update_case, upsert_case
 
 API_KEY = os.getenv("INGEST_API_KEY", "")
 WINDOW = int(os.getenv("CORRELATION_WINDOW_SECONDS", "300"))
 MAX_BODY = int(os.getenv("MAX_ALERT_BODY_BYTES", "262144"))
+logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
-    yield
+    channels = configured_channels()
+    worker = asyncio.create_task(notification_outbox_worker()) if channels else None
+    try:
+        yield
+    finally:
+        if worker:
+            worker.cancel()
+            try:
+                await worker
+            except asyncio.CancelledError:
+                pass
 
 app = FastAPI(title="Sentinel L1 SOC Analyst", version="0.1.0", lifespan=lifespan)
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
@@ -40,8 +54,20 @@ async def ingest(request: Request, x_api_key: str | None = Header(default=None))
     if not isinstance(alert, dict) or not isinstance(alert.get("rule"), dict): raise HTTPException(status_code=422, detail="expected_wazuh_alert_object")
     ai = await analyze(alert)
     score = risk_score(alert)
-    case_id = upsert_case(alert, fingerprint(alert), ai, score, WINDOW)
-    return {"accepted": True, "case_id": case_id, "risk_score": score}
+    case_id, created = upsert_case(alert, fingerprint(alert), ai, score, WINDOW)
+    queued_channels = []
+    channels = configured_channels()
+    if created and score >= NOTIFICATION_MIN_RISK_SCORE:
+        for channel in channels:
+            try:
+                payload = build_teams_card(case_id, alert, ai, score) if channel == "teams" else build_text_notification(case_id, alert, ai, score)
+                enqueue_notification(case_id, channel, payload)
+                queued_channels.append(channel)
+            except Exception as exc:
+                logger.warning("Could not queue %s notification (%s)", channel, type(exc).__name__)
+
+    return {"accepted": True, "case_id": case_id, "risk_score": score,
+            "notification_queued": queued_channels}
 
 @app.get("/api/v1/cases")
 async def cases():

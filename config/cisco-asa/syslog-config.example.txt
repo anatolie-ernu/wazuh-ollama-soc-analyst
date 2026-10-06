@@ -1,0 +1,13 @@
+! Cisco ASA syslog export example — review interface, address, and severity first.
+! Enter in global configuration mode. Do not paste placeholders literally.
+logging enable
+logging timestamp
+logging device-id hostname
+logging trap informational
+logging host <ASA_EGRESS_INTERFACE> <WAZUH_MANAGER_IP> udp/514
+! Pentru TCP, folosește un listener Wazuh TCP pe 1470 și schimbă linia în:
+! logging host <ASA_EGRESS_INTERFACE> <WAZUH_MANAGER_IP> tcp/1470
+!
+! Verify from ASA privileged mode:
+show logging
+logging test
