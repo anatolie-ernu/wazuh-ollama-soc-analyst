@@ -13,5 +13,7 @@ jobs:
       - run: pip install -r requirements.txt pytest
       - run: pytest -q
       - run: python -m compileall -q app
+      - run: python -m py_compile scripts/custom-sentinel
+      - run: bash -n scripts/install-wazuh-debian13.sh scripts/configure-wazuh-asa-syslog.sh scripts/configure-wazuh-sentinel-integration.sh
       - run: cp .env.example .env
       - run: docker compose config -q

@@ -6,7 +6,7 @@ PoC SOC on-prem pentru trierea alertelor Wazuh cu model local Ollama. Oferă ing
 
 ## Arhitectură
 
-`Wazuh → Sentinel API → MariaDB → provider AI ales → dashboard`
+`Cisco ASA → syslog → Wazuh → Sentinel API → MariaDB → provider AI ales → dashboard`
 
 ## Cerințe
 
@@ -25,6 +25,8 @@ sudo bash scripts/install-debian13.sh
 Installerul verifică Debian 13, instalează Docker Engine și Compose plugin, generează cheia API, pornește serviciile și descarcă `qwen2.5:3b`. Ghidul complet: [docs/INSTALLATION.md](docs/INSTALLATION.md).
 
 Dashboard-ul ascultă implicit pe `127.0.0.1:8080`. Cheia ingestiei: `/opt/sentinel-l1/.env`. Configurează TLS și autentificare prin reverse proxy înainte de acces remote.
+
+Pentru instalarea completă Wazuh all-in-one și integrarea Cisco ASA → Wazuh → Sentinel, vezi [docs/WAZUH-CISCO-ASA.md](docs/WAZUH-CISCO-ASA.md). Wazuh se instalează pe host Debian, iar Sentinel/MariaDB/Ollama rulează în Docker pe același host sau pe un host separat.
 
 ## Test ingestie
 
@@ -47,7 +49,7 @@ docker compose exec ollama ollama pull qwen2.5:3b
 
 - `app/` API, persistență MariaDB, analiză AI multi-provider și dashboard
 - `docker-compose.yml`, `Dockerfile` stack Docker
-- `scripts/` instalare, verificare și backup
+- `scripts/` instalare Sentinel/Wazuh, configurare ASA/syslog, integrare webhook, verificare și backup
 - `docs/` instalare pas cu pas, integrare Wazuh, securitate, status și roadmap
 - `.github/workflows/` CI
 

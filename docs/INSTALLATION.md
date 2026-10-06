@@ -88,9 +88,9 @@ Răspunsul normal este `202` cu `case_id`. Alerta apare în dashboard după ce a
 
 Implicit se folosește Ollama local. Pentru OpenAI API, Claude API sau Google Gemini, editează `.env` conform [AI-PROVIDERS.md](AI-PROVIDERS.md), setează cheia providerului și `AI_MODEL`, apoi recreează API-ul. Modelele cloud transmit datele de alertă către furnizor; verifică politica organizației înainte de activare.
 
-## 8. Integrează Wazuh
+## 8. Instalează Wazuh și conectează Cisco ASA
 
-Urmează [WAZUH-INTEGRATION.md](WAZUH-INTEGRATION.md). Testează întâi cu alertă sintetică; integrarea directă pe manager se face doar după confirmarea compatibilității cu versiunea Wazuh instalată.
+Urmează ghidul [WAZUH-CISCO-ASA.md](WAZUH-CISCO-ASA.md) pentru Wazuh all-in-one, receiver UDP/514 restricționat la ASA, configurarea firewall-ului și forwardarea alertelor JSON către API. Ghidul include nota de compatibilitate Debian 13 și pașii de rollback.
 
 ## 9. Operare, update, backup și restaurare
 

@@ -1,0 +1,41 @@
+#!/usr/bin/env python3
+"""Wazuh custom integration: send one JSON alert to the Sentinel API."""
+import json
+import sys
+from urllib.parse import urlparse
+import urllib.error
+import urllib.request
+
+
+def main() -> int:
+    if len(sys.argv) < 4:
+        return 2
+    alert_path, api_key, endpoint = sys.argv[1:4]
+    parsed = urlparse(endpoint)
+    local_http = parsed.scheme == "http" and parsed.hostname in ("127.0.0.1", "::1", "localhost")
+    if parsed.scheme != "https" and not local_http:
+        print("custom-sentinel requires HTTPS (HTTP is allowed on loopback only)", file=sys.stderr)
+        return 2
+    try:
+        with open(alert_path, encoding="utf-8") as stream:
+            alert = json.load(stream)
+        payload = json.dumps(alert, separators=(",", ":")).encode()
+        request = urllib.request.Request(
+            endpoint,
+            data=payload,
+            headers={"Content-Type": "application/json", "X-API-Key": api_key},
+            method="POST",
+        )
+        with urllib.request.urlopen(request, timeout=8) as response:
+            if response.status not in (200, 201, 202):
+                print(f"Sentinel returned HTTP {response.status}", file=sys.stderr)
+                return 1
+    except (OSError, ValueError, urllib.error.URLError) as exc:
+        # Never print the URL or API key; Wazuh records stderr in integrations.log.
+        print(f"custom-sentinel delivery failed: {type(exc).__name__}", file=sys.stderr)
+        return 1
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
