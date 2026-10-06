@@ -28,6 +28,8 @@ Dashboard-ul ascultă implicit pe `127.0.0.1:8080`. Cheia ingestiei: `/opt/senti
 
 Pentru instalarea completă Wazuh all-in-one și integrarea Cisco ASA → Wazuh → Sentinel, vezi [docs/WAZUH-CISCO-ASA.md](docs/WAZUH-CISCO-ASA.md). Wazuh se instalează pe host Debian, iar Sentinel/MariaDB/Ollama rulează în Docker pe același host sau pe un host separat.
 
+Notificările opționale Microsoft Teams se configurează printr-un Workflow webhook; ghidul este [docs/TEAMS-NOTIFICATIONS.md](docs/TEAMS-NOTIFICATIONS.md).
+
 ## Test ingestie
 
 ```bash

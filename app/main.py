@@ -1,21 +1,34 @@
 import hmac
 import json
+import logging
 import os
+import asyncio
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Header, HTTPException, Request
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from app.analyzer import analyze, fingerprint, mitre_tags, risk_score
-from app.store import get_case, init_db, list_cases, update_case, upsert_case
+from app.notifications import TEAMS_MIN_RISK_SCORE, build_teams_card, teams_enabled, teams_outbox_worker
+from app.store import enqueue_teams_notification, get_case, init_db, list_cases, update_case, upsert_case
 
 API_KEY = os.getenv("INGEST_API_KEY", "")
 WINDOW = int(os.getenv("CORRELATION_WINDOW_SECONDS", "300"))
 MAX_BODY = int(os.getenv("MAX_ALERT_BODY_BYTES", "262144"))
+logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
-    yield
+    worker = asyncio.create_task(teams_outbox_worker()) if teams_enabled() else None
+    try:
+        yield
+    finally:
+        if worker:
+            worker.cancel()
+            try:
+                await worker
+            except asyncio.CancelledError:
+                pass
 
 app = FastAPI(title="Sentinel L1 SOC Analyst", version="0.1.0", lifespan=lifespan)
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
@@ -40,8 +53,17 @@ async def ingest(request: Request, x_api_key: str | None = Header(default=None))
     if not isinstance(alert, dict) or not isinstance(alert.get("rule"), dict): raise HTTPException(status_code=422, detail="expected_wazuh_alert_object")
     ai = await analyze(alert)
     score = risk_score(alert)
-    case_id = upsert_case(alert, fingerprint(alert), ai, score, WINDOW)
-    return {"accepted": True, "case_id": case_id, "risk_score": score}
+    case_id, created = upsert_case(alert, fingerprint(alert), ai, score, WINDOW)
+    notification_queued = False
+    if created and teams_enabled() and score >= TEAMS_MIN_RISK_SCORE:
+        try:
+            payload = build_teams_card(case_id, alert, ai, score)
+            enqueue_teams_notification(case_id, payload)
+            notification_queued = True
+        except Exception as exc:
+            logger.warning("Could not queue Teams notification (%s)", type(exc).__name__)
+    return {"accepted": True, "case_id": case_id, "risk_score": score,
+            "teams_notification_queued": notification_queued}
 
 @app.get("/api/v1/cases")
 async def cases():

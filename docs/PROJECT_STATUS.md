@@ -6,11 +6,11 @@
 
 ## Implemented in the proposal
 
-FastAPI ingest and cases API, MariaDB storage, provider-selectable Ollama/OpenAI/Anthropic/Google triage, heuristic risk score, MITRE ID display when present in Wazuh payload, single-page dashboard, Debian 13 app installer, Wazuh all-in-one assistant wrapper, restricted ASA syslog receiver setup, Wazuh custom integration to Sentinel, MariaDB backup/restore helpers, documentation and CI workflow.
+FastAPI ingest and cases API, MariaDB storage, provider-selectable Ollama/OpenAI/Anthropic/Google triage, heuristic risk score, MITRE ID display when present in Wazuh payload, single-page dashboard, Debian 13 app installer, Wazuh all-in-one assistant wrapper, restricted ASA syslog receiver setup, Wazuh custom integration to Sentinel, optional Microsoft Teams Workflow notifications with MariaDB outbox/retries, MariaDB backup/restore helpers, documentation and CI workflow.
 
 ## Validation state
 
-Shell syntax, Python compilation, and a temporary `ossec.conf` receiver configuration smoke test passed. The custom-integration network test is included in pytest but could not run here because pytest is absent and package network access is blocked. Full CI, container build, Debian 13 install, live Ollama inference, and Wazuh/ASA end-to-end integration have not yet been run. Do not treat as production-ready.
+Shell syntax, Python compilation, and a temporary `ossec.conf` receiver configuration smoke test passed. Local Python tests could not run because pytest/httpx are absent and package network access is blocked; CI is the test gate for this PR. Debian 13 install, live Ollama inference, Teams delivery, and Wazuh/ASA end-to-end integration have not yet been run. Do not treat as production-ready.
 
 ## Known limitations
 
