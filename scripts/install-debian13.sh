@@ -10,7 +10,9 @@ fi
 if ! command -v curl >/dev/null 2>&1; then apt-get update; apt-get install -y ca-certificates curl; fi
 install -d -m 0750 "$APP_DIR"
 if [[ -f docker-compose.yml && -f Dockerfile ]]; then
-  cp -a . "$APP_DIR/"
+  source_dir="$(pwd -P)"
+  target_dir="$(realpath -m "$APP_DIR")"
+  if [[ "$source_dir" != "$target_dir" ]]; then cp -a . "$APP_DIR/"; fi
 elif [[ -n "$REPO_URL" ]]; then
   if ! command -v git >/dev/null 2>&1; then apt-get update; apt-get install -y git; fi
   git clone --depth 1 "$REPO_URL" "$APP_DIR"

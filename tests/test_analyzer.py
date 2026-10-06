@@ -20,6 +20,7 @@ def test_fingerprint_changes_for_source_ip():
     other = sample()
     other["data"]["srcip"] = "192.0.2.2"
     assert fingerprint(event) != fingerprint(other)
+    assert len(fingerprint(event)) == 64
 
 
 def test_prompt_contains_only_alert_evidence_and_mitre():

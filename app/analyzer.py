@@ -1,3 +1,4 @@
+import hashlib
 import json
 import os
 import re
@@ -26,7 +27,8 @@ def risk_score(alert: dict, count: int = 1) -> int:
 
 def fingerprint(alert: dict) -> str:
     rule, agent, data = alert.get("rule", {}), alert.get("agent", {}), alert.get("data", {})
-    return json.dumps([rule.get("id"), agent.get("id"), rule.get("description"), data.get("srcip"), data.get("user")], separators=(",", ":"))
+    value = json.dumps([rule.get("id"), agent.get("id"), rule.get("description"), data.get("srcip"), data.get("user")], separators=(",", ":"))
+    return hashlib.sha256(value.encode("utf-8")).hexdigest()
 
 
 def make_prompt(alert: dict, count: int = 1) -> str:

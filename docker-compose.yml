@@ -59,4 +59,4 @@ volumes:
   ollama-data:
 networks:
   soc:
-    internal: true
+    driver: bridge

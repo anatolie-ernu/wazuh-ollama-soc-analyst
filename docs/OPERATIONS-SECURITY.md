@@ -3,7 +3,7 @@
 - AI este consultativ; nu există auto-remediere ori auto-închidere.
 - Alertele pot conține informații sensibile. Menține traficul în rețeaua SOC și definește retenția înainte de a folosi date reale.
 - Ingestia și `PATCH` cer API key. Dashboard-ul și `GET` nu au autentificare; protejează-le prin reverse proxy cu SSO/MFA înainte de acces remote sau multi-user.
-- TLS trebuie terminat la un proxy de încredere. Nu expune `8080` sau `11434` public.
+- TLS trebuie terminat la un proxy de încredere. Nu expune `8080`, `3306` sau `11434` public. API-ul și Ollama au nevoie de egress pentru providerul AI și descărcarea modelului; restricționează egress-ul prin firewall la destinațiile necesare. Porturile DB și Ollama nu sunt publicate pe host.
 - `.env` nu se comite și trebuie protejat la nivel de OS.
 - Conținutul alertei poate include prompt injection; modelul local poate greși. Verifică întotdeauna dovezile în Wazuh.
 - MariaDB rulează separat în Compose, cu InnoDB, volum persistent și cont aplicație. Pentru HA/throughput ridicat: replicare MariaDB proiectată separat, migrări, queue persistentă și retenție.
